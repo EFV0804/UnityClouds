@@ -3,28 +3,24 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
-[ExecuteInEditMode]
+[ExecuteInEditMode, ImageEffectAllowedInSceneView]
 public class worley_voronoi : MonoBehaviour
 {
+    public Transform container;
+    public Shader shader;
+    public Material material;
+    public float aplhaRange;
 
     public ComputeShader computeShader;
-    public int seed;
     private ComputeBuffer buffer;
-    public RenderTexture renderTexture;
-    private Renderer renderer;
+    private RenderTexture renderTexture;
     private int resolution = 132;
 
     // UI
     public bool MakeSomeNoise;
 
-
-    void Start()
+    private void createTexture()
     {
-
-    }
-    void createTexture()
-    {
-
         var format = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_UNorm;
         TextureWrapMode wrapMode = TextureWrapMode.Repeat;
         renderTexture = new RenderTexture(resolution, resolution, 0);
@@ -35,12 +31,19 @@ public class worley_voronoi : MonoBehaviour
         renderTexture.enableRandomWrite = true;
         renderTexture.filterMode = FilterMode.Bilinear;
         renderTexture.Create();
-        AssetDatabase.CreateAsset(renderTexture, "Assets/clouds/noise/temp/worley_3D.asset");
+        AssetDatabase.CreateAsset(renderTexture, "Assets/clouds/cloudMaterial/worley_3D.asset");
+
     }
-    void CreateVoronoiPoints(int numCells)
+
+    private ComputeBuffer createBuffer(System.Array data, int stride)
     {
-        var prng = new System.Random(seed);
-        //make points
+        var buffer = new ComputeBuffer(data.Length, stride, ComputeBufferType.Structured);
+        buffer.SetData(data);
+        return buffer;
+    }
+
+    private Vector3[] CreateVoronoiPoints(int numCells)
+    {
         var points = new Vector3[numCells * numCells * numCells];
         float cellSize = 1f / numCells;
         for (int x = 0; x < numCells; x++)
@@ -57,48 +60,69 @@ public class worley_voronoi : MonoBehaviour
                 }
             }
         }
-        Debug.Log(points.Length.ToString());
 
-        //copy points to buffer
-        buffer = createBuffer(points, sizeof(float) * 3, "points");
-    }
-    ComputeBuffer createBuffer(System.Array data, int stride, string bufferName, int kernel = 0)
-    {
-        var buffer = new ComputeBuffer(data.Length, stride, ComputeBufferType.Structured);
-        buffer.SetData(data);
-        computeShader.SetBuffer(kernel, bufferName, buffer);
-        return buffer;
+        return points;
     }
 
     private void GenerateNoise()
     {
-        createTexture();
 
-        CreateVoronoiPoints(8);
+        Vector3[] points = CreateVoronoiPoints(8);
+        buffer = createBuffer(points, sizeof(float) * 3);
 
         computeShader.SetTexture(0, "Result", renderTexture);
         computeShader.SetBuffer(0, "points", buffer);
-
         computeShader.SetFloats("Resolution", resolution, resolution, resolution);
-
         computeShader.SetFloat("u_time", Time.time);
+        computeShader.SetBuffer(0, "points", buffer);
+
         int workGrps = Mathf.CeilToInt(resolution / (float)8);
         computeShader.Dispatch(0, workGrps, workGrps, workGrps);
-
-        renderer = GetComponent<Renderer>();
-
-        renderer.material.SetTexture("worley", renderTexture);
 
         buffer.Release();
     }
 
+    private void SetShader()
+    {
+
+        material.SetTexture("_Worley", renderTexture);
+        material.SetVector("boxMin", container.position - container.localScale/2);
+        material.SetVector("boxMax", container.position + container.localScale / 2);
+        material.SetFloat("alpha_range", aplhaRange);
+        //Debug.Log((container.position - container.localScale / 2) + " , " + (container.position + container.localScale / 2));
+    }
+
+    private void MakeSomeNoiseFunction()
+    {
+        createTexture();
+        //SetShader();
+        GenerateNoise();
+    }
     void Update()
     {
         if (MakeSomeNoise)
         {
-            GenerateNoise();
+            MakeSomeNoiseFunction();
         }
         MakeSomeNoise = false;
 
+    }
+
+    [ImageEffectOpaque]
+    private void OnRenderImage(RenderTexture source, RenderTexture destination)
+    {
+        //if(material == null)
+        //{
+        //    material = new Material(shader);
+        //    Debug.LogError("Fuck it no material");
+        //}
+
+        SetShader();
+        // Blit does the following:
+        // - sets _MainTex property on material to the source texture
+        // - sets the render target to the destination texture
+        // - draws a full-screen quad
+        // This copies the src texture to the dest texture, with whatever modifications the shader makes
+        Graphics.Blit(source, destination, material);
     }
 }

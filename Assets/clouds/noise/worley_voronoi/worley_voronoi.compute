@@ -66,19 +66,23 @@ float voronoi(StructuredBuffer<float3> points, float3 st)
             int neighbour_index = wrapped_neighbour.x + numcells * (wrapped_neighbour.y + wrapped_neighbour.z * numcells);
             float3 wrapped_point = points[neighbour_index];
             for (int warp_i = 0; warp_i < 27; warp_i++) {
-                float3 distance = (pos - (wrapped_point + offsets[warp_i]));
-                min_dist = min(min_dist, dot(distance, distance));
+
+                float distance = length((pos - (wrapped_point + offsets[warp_i])));
+                //min_dist = min(min_dist, dot(distance, distance));
+                min_dist = min(min_dist, distance);
             }
         }
         else {
             int neighbour_index = neighbour.x + numcells * (neighbour.y + neighbour.z * numcells);
-            float3 distance = pos - points[neighbour_index];
-            min_dist = min(min_dist, dot(distance, distance));
+            float distance = length(pos - points[neighbour_index]);
+            //min_dist = min(min_dist, dot(distance, distance));
+            min_dist = min(min_dist, distance);
 
         }
     }
     
-    return sqrt(min_dist);
+    //return sqrt(min_dist);
+    return min_dist;
 }
 
 
