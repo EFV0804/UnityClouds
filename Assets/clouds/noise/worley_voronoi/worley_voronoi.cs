@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
+[ExecuteInEditMode]
 public class worley_voronoi : MonoBehaviour
 {
 
@@ -13,25 +14,12 @@ public class worley_voronoi : MonoBehaviour
     private Renderer renderer;
     private int resolution = 132;
 
+    // UI
+    public bool MakeSomeNoise;
+
+
     void Start()
     {
-        createTexture();
-
-        CreateVoronoiPoints(8);
-
-        computeShader.SetTexture(0, "Result", renderTexture);
-        computeShader.SetBuffer(0, "points", buffer);
-        
-        computeShader.SetFloats("Resolution", resolution,resolution,resolution);
-
-        computeShader.SetFloat("u_time", Time.time);
-        int workGrps = Mathf.CeilToInt(resolution / (float)8);
-        computeShader.Dispatch(0, workGrps, workGrps, workGrps);
-
-        renderer = GetComponent<Renderer>();
-        renderer.material.SetTexture("worley", renderTexture);
-
-        buffer.Release();
 
     }
     void createTexture()
@@ -47,7 +35,7 @@ public class worley_voronoi : MonoBehaviour
         renderTexture.enableRandomWrite = true;
         renderTexture.filterMode = FilterMode.Bilinear;
         renderTexture.Create();
-
+        AssetDatabase.CreateAsset(renderTexture, "Assets/clouds/noise/temp/worley_3D.asset");
     }
     void CreateVoronoiPoints(int numCells)
     {
@@ -62,7 +50,7 @@ public class worley_voronoi : MonoBehaviour
                 for (int z = 0; z < numCells; z++)
                 {
                     Vector3 neighbour = new Vector3(x, y, z) * cellSize;
-                    Vector3 point = new Vector3((float)Random.Range(0.01f,0.99f), (float)Random.Range(0.01f, 0.99f), (float)Random.Range(0.01f, 0.99f)) * cellSize;
+                    Vector3 point = new Vector3((float)Random.Range(0.01f, 0.99f), (float)Random.Range(0.01f, 0.99f), (float)Random.Range(0.01f, 0.99f)) * cellSize;
 
                     int i = x + numCells * (y + z * numCells);
                     points[i] = neighbour + point;
@@ -82,8 +70,35 @@ public class worley_voronoi : MonoBehaviour
         return buffer;
     }
 
+    private void GenerateNoise()
+    {
+        createTexture();
+
+        CreateVoronoiPoints(8);
+
+        computeShader.SetTexture(0, "Result", renderTexture);
+        computeShader.SetBuffer(0, "points", buffer);
+
+        computeShader.SetFloats("Resolution", resolution, resolution, resolution);
+
+        computeShader.SetFloat("u_time", Time.time);
+        int workGrps = Mathf.CeilToInt(resolution / (float)8);
+        computeShader.Dispatch(0, workGrps, workGrps, workGrps);
+
+        renderer = GetComponent<Renderer>();
+
+        renderer.material.SetTexture("worley", renderTexture);
+
+        buffer.Release();
+    }
+
     void Update()
     {
-        
+        if (MakeSomeNoise)
+        {
+            GenerateNoise();
+        }
+        MakeSomeNoise = false;
+
     }
 }
